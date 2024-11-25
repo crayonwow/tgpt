@@ -14,13 +14,17 @@ import (
 
 func main() {
 	var (
-		port             = os.Getenv("PORT")
-		token            = os.Getenv("TOKEN")
-		chatID           = os.Getenv("CHAT_ID")
-		secretToken      = os.Getenv("SECRET_TOKEN")
-		userWhiteListRaw = os.Getenv("USER_WHITE_LIST")
-		ollamaAddr       = os.Getenv("OLLAMA_ADDR")
+		port             = os.Getenv("HTTP_PORT")
+		token            = os.Getenv("TELEGRAM_BOT_TOKEN")
+		chatID           = os.Getenv("TELEGRAM_CHAT_ID")
+		secretToken      = os.Getenv("TELEGRAM_SECRET_TOKEN")
+		userWhiteListRaw = os.Getenv("TELEGRAM_USER_WHITE_LIST")
 		qdrantAddr       = os.Getenv("QDRANT_ADDR")
+
+		modelType = os.Getenv("MODEL_TYPE")
+
+		ollamaAddr = os.Getenv("OLLAMA_ADDR")
+		chatGPTKey = os.Getenv("CHAT_GPT_KEY")
 	)
 
 	if token == "" {
@@ -45,10 +49,6 @@ func main() {
 		slog.Error("WHITE_LIST is empty")
 		os.Exit(1)
 	}
-	if ollamaAddr == "" {
-		slog.Error("OLLAMA_ADDR is empty")
-		os.Exit(1)
-	}
 	if qdrantAddr == "" {
 		slog.Error("QDRANT_ADDR is empty")
 		os.Exit(1)
@@ -57,11 +57,12 @@ func main() {
 	httpClient := pkgHttp.NewHttpClient()
 
 	c, err := chat.NewService(chat.Config{
-		HTTPClient: httpClient,
+		ModelType:  modelType,
 		ModelName:  chat.ModelLlama2uncensored,
 		OllamaAddr: ollamaAddr,
 		KeepAlive:  "1m",
 		QdrantAddr: qdrantAddr,
+		ChatGPTKey: chatGPTKey,
 	})
 	if err != nil {
 		slog.Error("failed to create chat service", "error", err)

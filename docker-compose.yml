@@ -1,0 +1,17 @@
+version: "3"
+
+services:
+  tgpt:
+    container_name: tgpt
+    image: qdrant/qdrant:latest
+    restart: always
+    ports:
+      - 5050:5050
+    env_file: "local.env"
+
+  qdrant:
+    container_name: tgpt-qdrant
+    image: qdrant/qdrant:latest
+    restart: always
+    volumes:
+      - ./qdrant_data:/qdrant/storage

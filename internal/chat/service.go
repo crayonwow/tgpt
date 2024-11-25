@@ -3,13 +3,13 @@ package chat
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 
 	"github.com/tmc/langchaingo/chains"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
+	"github.com/tmc/langchaingo/llms/openai"
 	"github.com/tmc/langchaingo/memory"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores"
@@ -30,16 +30,20 @@ const (
 	ModelLlama3           = "llama3.1"
 )
 
+const (
+	modelTypeOllama = "ollama"
+	modelTypeOpenAI = "openai"
+)
+
 type Handler func(ctx context.Context, chunk []byte) error
 
 type Config struct {
-	HTTPClient *http.Client
-
+	ModelType  string
 	ModelName  string
 	OllamaAddr string
 	KeepAlive  string
-
 	QdrantAddr string
+	ChatGPTKey string
 }
 
 type Service struct {
@@ -49,17 +53,43 @@ type Service struct {
 	mem schema.Memory
 }
 
-func NewService(cfg Config) (*Service, error) {
-	_ollama, err := ollama.New(
-		ollama.WithModel(cfg.ModelName),
-		ollama.WithKeepAlive(cfg.KeepAlive),
-		ollama.WithServerURL(cfg.OllamaAddr),
+type model interface {
+	llms.Model
+	embeddings.EmbedderClient
+}
+
+func newModel(cfg Config) (model, error) {
+	var (
+		m   model
+		err error
 	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ollama client: %w", err)
+
+	switch cfg.ModelType {
+	case modelTypeOllama:
+		m, err = ollama.New(
+			ollama.WithModel(cfg.ModelName),
+			ollama.WithKeepAlive(cfg.KeepAlive),
+			ollama.WithServerURL(cfg.OllamaAddr),
+		)
+	case modelTypeOpenAI:
+		m, err = openai.New(openai.WithToken(cfg.ChatGPTKey))
+	default:
+		return nil, fmt.Errorf("unknown model type: %s", cfg.ModelType)
 	}
 
-	e, err := embeddings.NewEmbedder(_ollama)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create "+cfg.ModelName+" client: %w", err)
+	}
+	return m, nil
+}
+
+func NewService(cfg Config) (*Service, error) {
+	mod, err := newModel(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("model: %w", err)
+	}
+
+	e, err := embeddings.NewEmbedder(mod)
 	if err != nil {
 		return nil, fmt.Errorf("can't build embeder: %w", err)
 	}
@@ -83,7 +113,7 @@ func NewService(cfg Config) (*Service, error) {
 
 	return &Service{
 		store: q,
-		llm:   _ollama,
+		llm:   mod,
 		mem:   mem,
 	}, nil
 }
@@ -93,6 +123,7 @@ func (s *Service) HandleQuery(
 	message models.Message,
 	handler Handler,
 ) error {
+	ctx = pkgContext.CtxWithUserID(ctx, message.UserName)
 	switch message.Command {
 	case commandPrefixEn_US, commandPrefixRu_RU:
 		return s.recall(ctx, message, handler)
@@ -128,7 +159,7 @@ func (s *Service) saveDocument(
 	}
 
 	_, err := s.store.AddDocuments(
-		pkgContext.CtxWithUserID(ctx, message.UserName),
+		ctx,
 		[]schema.Document{
 			{
 				PageContent: "'" + message.FromUserName.String() + "': " + message.Text,
@@ -175,7 +206,7 @@ func (s *Service) recall(
 	)
 
 	_, err := chains.Call(
-		pkgContext.CtxWithUserID(ctx, message.UserName),
+		ctx,
 		conv,
 		map[string]any{
 			"question": message.Text,
