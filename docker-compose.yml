@@ -3,7 +3,7 @@ version: "3"
 services:
   tgpt:
     container_name: tgpt
-    image: qdrant/qdrant:latest
+    image: ghcr.io/crayonwow/tgpt:main
     restart: always
     ports:
       - 5050:5050

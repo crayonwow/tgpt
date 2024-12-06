@@ -69,7 +69,7 @@ func main() {
 		os.Exit(1)
 	}
 	b := telegram.NewBot(httpClient, token)
-	h := telegram.NewHandler(c, b, token, strings.Split(userWhiteListRaw, ","))
+	h := telegram.NewHandler(c, b, secretToken, strings.Split(userWhiteListRaw, ","))
 
 	router := http.NewServeMux()
 	router.HandleFunc("/webhook", h.HandleMessage)
