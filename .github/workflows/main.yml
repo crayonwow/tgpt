@@ -33,25 +33,3 @@ jobs:
         run: |
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG_NAME }}
-  pull-container:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-    needs: build_and_push
-    steps:
-      - name: deploy to server via SSH action
-        uses: appleboy/ssh-action@v0.1.8
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.KEY }}
-          port: ${{ secrets.PORT }}
-          script: |
-            # Login to GHCR
-            echo -n ${{ secrets.GITHUB_TOKEN }} | docker login https://ghcr.io -u ${{ github.actor }} --password-stdin
-            # Tag latestold image from latest
-            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latestold
-            # Get version ${{ env.TAG_NAME }}
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG_NAME }}
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
